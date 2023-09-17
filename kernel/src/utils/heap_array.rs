@@ -19,7 +19,7 @@ impl<T> HeapArray<T> {
         Some(Self { ptr, len })
     }
 
-    pub fn new_with_ptr(ptr: NonNull<T>, len: usize) -> Self {
+    pub const fn new_with_ptr(ptr: NonNull<T>, len: usize) -> Self {
         Self { ptr, len }
     }
 
