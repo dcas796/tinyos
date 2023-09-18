@@ -1,39 +1,52 @@
-use crate::alloc_sys::block::{MemoryBlock, MemoryBlocks};
+use core::mem;
+use core::ptr::NonNull;
+use crate::alloc_sys::block::MemoryBlock;
+use crate::utils::heap_array::HeapArray;
+use crate::utils::heap_vec::HeapVec;
 
 pub const MAX_ALIGN: usize = 4096;
-pub const MEMORY_SIZE: usize = 4 * 1000 * 255;
-pub const MAX_BLOCKS: usize = MEMORY_SIZE;
+pub const BLOCKS_BUFFER_FRACTION: f64 = 0.25;
 
-#[repr(C, align(4096))]
 pub struct MemoryMap {
-    buffer: [u8; MEMORY_SIZE],
-    pub(crate) blocks: MemoryBlocks,
+    buffer: HeapArray<u8>,
+    blocks: HeapVec<MemoryBlock>,
 }
 
 impl MemoryMap {
-    pub const fn new() -> Self {
+    pub fn new(ptr: NonNull<u8>, len: usize) -> Self {
+        let ptr_addr = ptr.as_ptr() as usize;
+        let aligned_ptr_addr = ptr_addr + MAX_ALIGN - (ptr_addr % MAX_ALIGN);
+        assert!(aligned_ptr_addr < (ptr_addr + len), "Insufficient size for ALLOCATOR");
+        let aligned_ptr = NonNull::new(aligned_ptr_addr as *mut u8).unwrap();
+        let blocks_len = (BLOCKS_BUFFER_FRACTION * len as f64) as usize /
+            mem::size_of::<MemoryBlock>();
+
+        let blocks_ptr = unsafe {
+            let ptr = aligned_ptr.as_ptr().add(len - blocks_len);
+            NonNull::new(ptr.cast::<MemoryBlock>()).unwrap()
+        };
         Self {
-            buffer: [0; MEMORY_SIZE],
-            blocks: MemoryBlocks::new(),
+            buffer: HeapArray::new_with_ptr(aligned_ptr, len - blocks_len),
+            blocks: HeapVec::new_with_ptr(blocks_ptr, blocks_len),
         }
     }
 
     pub unsafe fn alloc(&mut self, size: usize, align: usize, zeroed: bool) -> Option<*mut u8> {
-        if size > MEMORY_SIZE || align > MAX_ALIGN {
+        if size >= self.buffer.len() || align > MAX_ALIGN {
             return None;
         }
 
         let padded_size = size + align - 1;
         let block = if let Some(block) = self.blocks.last() {
             let end = block.end();
-            let free_space = MEMORY_SIZE - end;
+            let free_space = self.buffer.len() - end;
             if free_space >= padded_size {
                 let start = end + align - (end % align);
                 MemoryBlock::new(start, size)
             } else {
                 if self.blocks.first().unwrap().start >= padded_size {
                     MemoryBlock::new(0, size)
-                } else if (MEMORY_SIZE - self.blocks.last().unwrap().end()) >= padded_size {
+                } else if (self.buffer.len() - self.blocks.last().unwrap().end()) >= padded_size {
                     let end = self.blocks.last().unwrap().end();
                     let start = end + align - (end % align);
                     MemoryBlock::new(start, size)
@@ -55,7 +68,7 @@ impl MemoryMap {
         };
 
 
-        self.blocks.insert(block);
+        self.insert_block(block);
         if zeroed {
             for i in block.start..block.end() {
                 self.buffer[i] = 0;
@@ -66,7 +79,7 @@ impl MemoryMap {
 
     pub unsafe fn dealloc(&mut self, ptr: *mut u8) {
         if let Some(start) = self.start_for_ptr(ptr) {
-            self.blocks.remove(&MemoryBlock::new(start, 0));
+            self.remove_block(MemoryBlock::new(start, 0));
         }
     }
     pub unsafe fn realloc(&mut self, ptr: *mut u8, size: usize, align: usize) -> Option<*mut u8> {
@@ -75,7 +88,7 @@ impl MemoryMap {
         let free_space_end = if let Some(next_block) = self.blocks.get(pos + 1) {
             next_block.start
         } else {
-            MEMORY_SIZE
+            self.buffer.len()
         };
         let block = self.blocks.get(pos)?;
         let block_size = block.size;
@@ -93,13 +106,29 @@ impl MemoryMap {
     }
 
     unsafe fn ptr_for_start(&mut self, start: usize) -> *mut u8 {
-        assert!(start < MEMORY_SIZE);
+        assert!(start < self.buffer.len());
         self.buffer.as_mut_ptr().add(start)
     }
 
-    unsafe fn start_for_ptr(&mut self, ptr: *mut u8) -> Option<usize> {
-        if ptr < self.buffer.as_mut_ptr() { return None; }
-        Some(ptr.sub(self.buffer.as_mut_ptr() as usize) as usize)
+    unsafe fn start_for_ptr(&self, ptr: *const u8) -> Option<usize> {
+        if ptr < self.buffer.as_ptr() { return None; }
+        Some(ptr.sub(self.buffer.as_ptr() as usize) as usize)
+    }
+
+    fn insert_block(&mut self, block: MemoryBlock) {
+        let position = match self.blocks.binary_search(&block) {
+            Ok(_) => panic!("Cannot allocate the another block to the same pointer"),
+            Err(i) => i,
+        };
+        self.blocks.insert(position, block);
+    }
+
+    fn remove_block(&mut self, block: MemoryBlock) {
+        let position = match self.blocks.binary_search(&block) {
+            Ok(i) => i,
+            Err(_) => return,
+        };
+        self.blocks.remove(position);
     }
 }
 
@@ -107,18 +136,59 @@ impl MemoryMap {
 mod tests {
     use alloc::alloc::alloc;
     use core::alloc::{GlobalAlloc, Layout};
+    use core::mem::ManuallyDrop;
+    use core::ptr::NonNull;
     use crate::alloc_sys::ALLOCATOR;
+    use crate::utils::heap_array::HeapArray;
+
+    const ALLOCATOR_SIZE: usize = 10_000_000;
+
+    unsafe fn initialize_allocator() {
+        let alloc_layout = Layout::from_size_align_unchecked(ALLOCATOR_SIZE, 4096);
+        let alloc_ptr = NonNull::new(alloc(alloc_layout)).unwrap();
+        ALLOCATOR.initialize(alloc_ptr, ALLOCATOR_SIZE);
+    }
 
     #[test]
-    fn alloc_test() {
+    fn align_test() {
         unsafe {
+            println!();
+            initialize_allocator();
             let layout = Layout::from_size_align(50, 16).unwrap();
-            println!("Buffer ptr:\t{:#018x}", ALLOCATOR.map.get().as_mut().unwrap().buffer.as_mut_ptr() as usize);
+            println!("Buffer ptr:\t{:#018x}", ALLOCATOR
+                .map.get().as_ref().unwrap().as_ref()
+                // .get().unwrap()
+                .unwrap()
+                .buffer.as_ptr() as usize);
             let my_ptr = ALLOCATOR.alloc(layout);
-            println!("My ptr:\t\t{:#018x}", my_ptr as usize);
-            assert_eq!(my_ptr as usize % layout.align(), 0);
-            let std_ptr = alloc(layout);
-            println!("Std ptr:\t{:#018x}", std_ptr as usize);
+            let is_aligned = if my_ptr as usize % layout.align() == 0 { true } else { false };
+            println!(
+                "My ptr:\t\t{:#018x} is{}aligned",
+                my_ptr as usize,
+                if is_aligned { " " } else { " not " }
+            );
+            assert!(is_aligned);
+        }
+    }
+
+    #[test]
+    fn heap_array_test() {
+        unsafe {
+            println!();
+            initialize_allocator();
+            const ARRAY_LEN: usize = 30_000;
+            let layout = Layout::array::<u8>(ARRAY_LEN).unwrap();
+            let ptr = NonNull::new(ALLOCATOR.alloc(layout))
+                .expect("Returned a null pointer from allocator");
+            let _array = HeapArray::new_with_ptr(ptr, ARRAY_LEN);
+            // Do not drop HeapArray, global_allocator is not our allocator
+            let mut array = ManuallyDrop::new(_array);
+            for (i, mut byte) in array.iter_mut().enumerate() {
+                *byte = i as u8;
+            }
+            for (i, byte) in array.iter().enumerate() {
+                assert_eq!(*byte, i as u8, "Error in i: {i}");
+            }
         }
     }
 }
