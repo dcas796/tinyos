@@ -8,7 +8,7 @@ It has no graphical user interface, only text on the screen. You can run program
 however, the kernel **does not have hard drive support** yet (it might be later on added as another integrated driver).
 
 It implements its own memory allocator; screen, keyboard and mouse drivers; and an interpreter program that is launched
-when booted. It is still very early stage and has yet not been tested on real hardware.
+when booted. It is still at a very early stage and has yet not been tested on real hardware.
 
 ## Architecture
 [TinyOS.pdf](images/TinyOS.pdf)
@@ -18,17 +18,19 @@ when booted. It is still very early stage and has yet not been tested on real ha
 Before compiling the project, you must download the nightly version of Cargo.
 It is recommended to use `rustup`, as it makes the whole process much easier.
 
-To install the nightly version of Cargo, run:
-
-`rustup default nightly`
+To install the nightly version of Cargo, run: 
+```sh
+rustup default nightly
+```
 
 As you will be cross-compiling, you need to download the `x86_64-unknown-none` target, through `rustup`:
-
-`rustup target add x86_64-unknown-none`
-
+```sh
+rustup target add x86_64-unknown-none
+```
 You also need the `llvm-tools-preview` component, which can be installed through:
-
-`rustup component add llvm-tools-preview`
+```sh
+rustup component add llvm-tools-preview
+```
 
 To run the project, you need QEMU. To install it, run:
 - macOS: `brew install qemu`
@@ -38,9 +40,9 @@ To run the project, you need QEMU. To install it, run:
 
 To test the project, you will need to compile it in the x86_64 architecture, as it will fail otherwise.
 But first, you need to add the x86_64 version of the Apple Darwin toolchain:
-
-`rustup target add x86_64-apple-darwin`
-
+```sh
+rustup target add x86_64-apple-darwin`
+```
 
 ## Compiling the OS
 
@@ -70,3 +72,4 @@ This project includes tests. To test the project, run:
 ---
 
 Made by [dcas796](https://dcas796.github.com/)
+
