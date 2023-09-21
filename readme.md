@@ -41,7 +41,7 @@ To run the project, you need QEMU. To install it, run:
 To test the project, you will need to compile it in the x86_64 architecture, as it will fail otherwise.
 But first, you need to add the x86_64 version of the Apple Darwin toolchain:
 ```sh
-rustup target add x86_64-apple-darwin`
+rustup target add x86_64-apple-darwin
 ```
 
 ## Compiling the OS
