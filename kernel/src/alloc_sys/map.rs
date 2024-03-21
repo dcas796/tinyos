@@ -1,11 +1,13 @@
-use core::mem;
-use core::ptr::NonNull;
 use crate::alloc_sys::block::MemoryBlock;
 use crate::utils::heap_array::HeapArray;
 use crate::utils::heap_vec::HeapVec;
+use crate::utils::non_zero_rem::NonZeroRem;
+use core::mem;
+use core::num::NonZeroUsize;
+use core::ptr::NonNull;
 
-pub const MAX_ALIGN: usize = 4096;
-pub const BLOCKS_BUFFER_FRACTION: f64 = 0.25;
+pub const MAX_ALIGN: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(4096) };
+pub const BLOCKS_BUFFER_FRACTION: f64 = 0.1;
 
 pub struct MemoryMap {
     buffer: HeapArray<u8>,
@@ -13,26 +15,57 @@ pub struct MemoryMap {
 }
 
 impl MemoryMap {
-    pub fn new(ptr: NonNull<u8>, len: usize) -> Self {
-        let ptr_addr = ptr.as_ptr() as usize;
-        let aligned_ptr_addr = ptr_addr + MAX_ALIGN - (ptr_addr % MAX_ALIGN);
-        assert!(aligned_ptr_addr < (ptr_addr + len), "Insufficient size for ALLOCATOR");
-        let aligned_ptr = NonNull::new(aligned_ptr_addr as *mut u8).unwrap();
-        let blocks_len = (BLOCKS_BUFFER_FRACTION * len as f64) as usize /
-            mem::size_of::<MemoryBlock>();
+    // pub fn _new(ptr: NonNull<u8>, len: usize) -> Self {
+    //     let ptr_addr = ptr.as_ptr() as usize;
+    //     let aligned_diff = MAX_ALIGN - (ptr_addr % MAX_ALIGN);
+    //     let aligned_ptr_addr = ptr_addr + aligned_diff;
+    //     assert!(
+    //         aligned_ptr_addr < (ptr_addr + len),
+    //         "Insufficient size for ALLOCATOR"
+    //     );
+    //     let len_aligned = len - aligned_diff;
+    //     let aligned_ptr = NonNull::new(aligned_ptr_addr as *mut u8).unwrap();
+    //     let blocks_len = (BLOCKS_BUFFER_FRACTION * len_aligned as f64) as usize;
 
+    //     let blocks_ptr = unsafe {
+    //         let ptr = aligned_ptr.as_ptr().add(len_aligned - blocks_len);
+    //         NonNull::new(ptr.cast::<MemoryBlock>()).unwrap()
+    //     };
+    //     Self {
+    //         buffer: HeapArray::new_with_ptr(aligned_ptr, len_aligned - blocks_len),
+    //         blocks: HeapVec::new_with_ptr(blocks_ptr, blocks_len / mem::size_of::<MemoryBlock>()),
+    //     }
+    // }
+
+    pub fn new(ptr: NonNull<u8>, len: usize) -> Self {
+        let ptr_addr = ptr.addr();
+        let aligned_diff = MAX_ALIGN.get() - (ptr_addr.non_zero_rem(MAX_ALIGN)).get();
+        let aligned_ptr_addr = ptr_addr
+            .checked_add(aligned_diff)
+            .expect("Overflowed usize when calculating aligned MemoryMap base pointer");
+        assert!(
+            aligned_ptr_addr.get() < (ptr_addr.get() + len),
+            "Insufficient size for ALLOCATOR"
+        );
+        let len_aligned = len - aligned_diff;
+        let aligned_ptr = NonNull::dangling().with_addr(aligned_ptr_addr);
+        let blocks_bytes_len = (BLOCKS_BUFFER_FRACTION * (len_aligned as f64)) as usize;
         let blocks_ptr = unsafe {
-            let ptr = aligned_ptr.as_ptr().add(len - blocks_len);
-            NonNull::new(ptr.cast::<MemoryBlock>()).unwrap()
+            aligned_ptr
+                .add(len_aligned - blocks_bytes_len)
+                .cast::<MemoryBlock>()
         };
         Self {
-            buffer: HeapArray::new_with_ptr(aligned_ptr, len - blocks_len),
-            blocks: HeapVec::new_with_ptr(blocks_ptr, blocks_len),
+            buffer: HeapArray::new_with_ptr(aligned_ptr, len_aligned - blocks_bytes_len),
+            blocks: HeapVec::new_with_ptr(
+                blocks_ptr,
+                blocks_bytes_len / mem::size_of::<MemoryBlock>(),
+            ),
         }
     }
 
     pub unsafe fn alloc(&mut self, size: usize, align: usize, zeroed: bool) -> Option<*mut u8> {
-        if size >= self.buffer.len() || align > MAX_ALIGN {
+        if size >= self.buffer.len() || align > MAX_ALIGN.get() {
             return None;
         }
 
@@ -66,7 +99,6 @@ impl MemoryMap {
         } else {
             MemoryBlock::new(0, size)
         };
-
 
         self.insert_block(block);
         if zeroed {
@@ -111,7 +143,9 @@ impl MemoryMap {
     }
 
     unsafe fn start_for_ptr(&self, ptr: *const u8) -> Option<usize> {
-        if ptr < self.buffer.as_ptr() { return None; }
+        if ptr < self.buffer.as_ptr() {
+            return None;
+        }
         Some(ptr.sub(self.buffer.as_ptr() as usize) as usize)
     }
 
@@ -134,12 +168,12 @@ impl MemoryMap {
 
 #[cfg(test)]
 mod tests {
+    use crate::alloc_sys::ALLOCATOR;
+    use crate::utils::heap_array::HeapArray;
     use alloc::alloc::alloc;
     use core::alloc::{GlobalAlloc, Layout};
     use core::mem::ManuallyDrop;
     use core::ptr::NonNull;
-    use crate::alloc_sys::ALLOCATOR;
-    use crate::utils::heap_array::HeapArray;
 
     const ALLOCATOR_SIZE: usize = 10_000_000;
 
@@ -155,13 +189,25 @@ mod tests {
             println!();
             initialize_allocator();
             let layout = Layout::from_size_align(50, 16).unwrap();
-            println!("Buffer ptr:\t{:#018x}", ALLOCATOR
-                .map.get().as_ref().unwrap().as_ref()
-                // .get().unwrap()
-                .unwrap()
-                .buffer.as_ptr() as usize);
+            println!(
+                "Buffer ptr:\t{:#018x}",
+                ALLOCATOR
+                    .map
+                    .get()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    // .get().unwrap()
+                    .unwrap()
+                    .buffer
+                    .as_ptr() as usize
+            );
             let my_ptr = ALLOCATOR.alloc(layout);
-            let is_aligned = if my_ptr as usize % layout.align() == 0 { true } else { false };
+            let is_aligned = if my_ptr as usize % layout.align() == 0 {
+                true
+            } else {
+                false
+            };
             println!(
                 "My ptr:\t\t{:#018x} is{}aligned",
                 my_ptr as usize,

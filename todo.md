@@ -14,3 +14,6 @@
 ## Interp program
 
 - Make it
+
+## Documentation
+- Add QEMU debugging documentation

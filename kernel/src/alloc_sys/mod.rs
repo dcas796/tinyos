@@ -1,12 +1,12 @@
 mod block;
 mod map;
 
+use crate::alloc_sys::map::MemoryMap;
 use core::alloc::{GlobalAlloc, Layout};
 use core::cell::UnsafeCell;
-use core::ptr::{NonNull, null_mut};
-use crate::alloc_sys::map::MemoryMap;
+use core::ptr::{null_mut, NonNull};
 
-#[cfg_attr(not(test),global_allocator)]
+#[cfg_attr(not(test), global_allocator)]
 pub static ALLOCATOR: SystemAllocator = SystemAllocator::new();
 
 pub struct SystemAllocator {
@@ -23,9 +23,11 @@ impl SystemAllocator {
     pub fn initialize(&self, ptr: NonNull<u8>, len: usize) {
         unsafe {
             match self.map.get().as_mut() {
-                Some(opt) if opt.is_some() => {},
+                Some(Some(_)) => {}
                 Some(opt) => *opt = Some(MemoryMap::new(ptr, len)),
-                None => {}
+                None => panic!(
+                    "Error while initializing SystemAllocator. Ptr to SystemAllocator.map is null."
+                ),
             }
         }
     }
@@ -37,7 +39,7 @@ unsafe impl GlobalAlloc for SystemAllocator {
             Some(Some(map)) => map
                 .alloc(layout.size(), layout.align(), false)
                 .unwrap_or(null_mut()),
-            _ => null_mut()
+            _ => null_mut(),
         }
     }
 
@@ -53,7 +55,7 @@ unsafe impl GlobalAlloc for SystemAllocator {
             Some(Some(map)) => map
                 .alloc(layout.size(), layout.align(), true)
                 .unwrap_or(null_mut()),
-            _ => null_mut()
+            _ => null_mut(),
         }
     }
 
@@ -62,7 +64,7 @@ unsafe impl GlobalAlloc for SystemAllocator {
             Some(Some(map)) => map
                 .realloc(ptr, new_size, layout.align())
                 .unwrap_or(null_mut()),
-            _ => null_mut()
+            _ => null_mut(),
         }
     }
 }

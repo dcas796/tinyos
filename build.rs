@@ -1,4 +1,7 @@
+use std::fs;
 use std::path::PathBuf;
+
+const KERNEL_FILE_PATH: &str = "target/kernel";
 
 fn main() {
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
@@ -6,6 +9,8 @@ fn main() {
 
     let bios_path = out_dir.join("bios.img");
     bootloader::BiosBoot::new(&kernel).create_disk_image(&bios_path).unwrap();
+
+    fs::copy(kernel, PathBuf::from(KERNEL_FILE_PATH)).unwrap();
 
     println!("cargo:rustc-env=BIOS_PATH={}", bios_path.display());
 }

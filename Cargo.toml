@@ -9,8 +9,8 @@ edition = "2021"
 members = ["kernel"]
 
 [build-dependencies]
-bootloader = "0.11.4"
+bootloader = "0.11.7"
 kernel = { path = "kernel",  artifact = "bin", target = "x86_64-unknown-none"}
 
 [dependencies]
-bootloader = "0.11.4"
+bootloader = "0.11.7"

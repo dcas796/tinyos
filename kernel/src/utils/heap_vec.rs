@@ -41,7 +41,10 @@ impl<T> HeapVec<T> {
 
         self.len += 1;
         self.array[index..self.len].rotate_right(1);
-        self.array[index] = elem;
+        let elem_mut_opt = self.array.get_mut(index);
+        let elem_mut = elem_mut_opt.unwrap();
+        *elem_mut = elem;
+        // *self.array.get_mut(index).unwrap() = elem;
     }
 
     pub fn remove(&mut self, index: usize) -> T {
