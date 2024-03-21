@@ -5,7 +5,6 @@
 #![feature(panic_info_message)]
 #![feature(strict_provenance)]
 #![feature(generic_nonzero)]
-#![feature(nonzero_internals)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
 #![allow(dead_code, static_mut_ref)]
@@ -16,9 +15,8 @@ use crate::alloc_sys::ALLOCATOR;
 use crate::logger::logger;
 use crate::vga::{VgaMode, VgaScreen};
 use bootloader_api::config::Mapping;
-use bootloader_api::info::{MemoryRegion, MemoryRegionKind};
+use bootloader_api::info::MemoryRegionKind;
 use bootloader_api::{BootInfo, BootloaderConfig};
-use core::cmp::min;
 use core::fmt::Write;
 use core::ptr::NonNull;
 use vga::color::VgaColor;
