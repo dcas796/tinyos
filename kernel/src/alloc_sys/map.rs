@@ -15,28 +15,6 @@ pub struct MemoryMap {
 }
 
 impl MemoryMap {
-    // pub fn _new(ptr: NonNull<u8>, len: usize) -> Self {
-    //     let ptr_addr = ptr.as_ptr() as usize;
-    //     let aligned_diff = MAX_ALIGN - (ptr_addr % MAX_ALIGN);
-    //     let aligned_ptr_addr = ptr_addr + aligned_diff;
-    //     assert!(
-    //         aligned_ptr_addr < (ptr_addr + len),
-    //         "Insufficient size for ALLOCATOR"
-    //     );
-    //     let len_aligned = len - aligned_diff;
-    //     let aligned_ptr = NonNull::new(aligned_ptr_addr as *mut u8).unwrap();
-    //     let blocks_len = (BLOCKS_BUFFER_FRACTION * len_aligned as f64) as usize;
-
-    //     let blocks_ptr = unsafe {
-    //         let ptr = aligned_ptr.as_ptr().add(len_aligned - blocks_len);
-    //         NonNull::new(ptr.cast::<MemoryBlock>()).unwrap()
-    //     };
-    //     Self {
-    //         buffer: HeapArray::new_with_ptr(aligned_ptr, len_aligned - blocks_len),
-    //         blocks: HeapVec::new_with_ptr(blocks_ptr, blocks_len / mem::size_of::<MemoryBlock>()),
-    //     }
-    // }
-
     pub fn new(ptr: NonNull<u8>, len: usize) -> Self {
         let ptr_addr = ptr.addr();
         let aligned_diff = MAX_ALIGN.get() - (ptr_addr.non_zero_rem(MAX_ALIGN)).get();
