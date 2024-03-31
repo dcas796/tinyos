@@ -7,7 +7,18 @@ use crate::vga::char::VgaChar;
 use crate::vga::color::VgaColor;
 use crate::vga::pixel::VgaPixel;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
-use noto_sans_mono_bitmap::{get_raster, RasterHeight};
+use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VgaError {
+    HeapArrayError(crate::utils::heap_array::HeapArrayError),
+}
+
+impl From<crate::utils::heap_array::HeapArrayError> for VgaError {
+    fn from(value: crate::utils::heap_array::HeapArrayError) -> Self {
+        Self::HeapArrayError(value)
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum VgaMode {
@@ -15,45 +26,52 @@ pub enum VgaMode {
     Pixels,
 }
 
-pub const TEXT_BUFFER_WIDTH: usize = 80;
-pub const TEXT_BUFFER_HEIGHT: usize = 25;
-pub const TEXT_BUFFER_SIZE: usize = TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT * 15;
+pub const TEXT_SCREEN_COLS: usize = 142;
+pub const TEXT_SCREEN_ROWS: usize = 45;
+pub const TEXT_BUFFER_SIZE: usize = TEXT_SCREEN_COLS * TEXT_SCREEN_ROWS * 15;
+
+pub const CHAR_WEIGHT: FontWeight = FontWeight::Regular;
+pub const CHAR_SIZE: RasterHeight = RasterHeight::Size16;
+pub const CHAR_WIDTH: usize = get_raster_width(CHAR_WEIGHT, CHAR_SIZE);
+pub const CHAR_HEIGHT: usize = CHAR_SIZE.val();
 
 pub struct VgaScreen<'a> {
     pub mode: VgaMode,
     framebuffer: &'a mut FrameBuffer,
 
-    text_buffer: HeapArray<VgaChar>,
+    pub text_buffer: HeapArray<VgaChar>,
     text_offset: usize,
-    char_width: usize,
-    char_height: usize,
-
     pub pixel_buffer: HeapArray<VgaPixel>,
 }
 
 impl<'a> VgaScreen<'a> {
-    pub fn new(framebuffer: &'a mut FrameBuffer) -> Self {
+    pub fn new(framebuffer: &'a mut FrameBuffer) -> Result<Self, VgaError> {
         let info = framebuffer.info();
+        // TODO: Support more pixel formats
         assert_eq!(info.pixel_format, PixelFormat::Bgr);
         assert_eq!(info.bytes_per_pixel, 3);
-        let char_width = info.width / TEXT_BUFFER_WIDTH;
-        let char_height = info.height / TEXT_BUFFER_HEIGHT;
         let pixel_buffer_length = info.byte_len;
-        Self {
+        let text_buffer = HeapArray::new(TEXT_BUFFER_SIZE)?;
+        let pixel_buffer = HeapArray::new(pixel_buffer_length / 3)?;
+        let mut screen = Self {
             mode: VgaMode::Text,
             framebuffer,
-            text_buffer: HeapArray::new(TEXT_BUFFER_SIZE).unwrap(),
+            text_buffer,
             text_offset: 0,
-            char_width,
-            char_height,
-            pixel_buffer: HeapArray::new(pixel_buffer_length / 3).unwrap(),
-        }
+            pixel_buffer,
+        };
+        screen.clear_buffers();
+        Ok(screen)
+    }
+
+    pub fn clear_buffers(&mut self) {
+        self.text_buffer.fill(VgaChar::default());
+        self.pixel_buffer.fill(VgaPixel(VgaColor::black()));
     }
 
     pub fn clear_screen(&mut self) {
-        self.text_buffer.fill(VgaChar::default());
-        self.pixel_buffer.fill(VgaPixel(VgaColor::black()));
-        self.draw();
+        self.clear_buffers();
+        self.buffer_mut().fill(0);
     }
 
     pub fn draw(&mut self) {
@@ -64,37 +82,45 @@ impl<'a> VgaScreen<'a> {
     }
 
     fn draw_text(&mut self) {
-        let starting_row = self.text_offset / self.char_height;
-        for y in 0..(TEXT_BUFFER_HEIGHT + 1) {
-            for x in 0..TEXT_BUFFER_WIDTH {
-                let char = self.text_buffer[(y + starting_row) * TEXT_BUFFER_WIDTH + x];
-                self.draw_char(&char, x, y + (self.text_offset % self.char_height));
+        let starting_row = self.text_offset / CHAR_HEIGHT;
+        for y in 0..(TEXT_SCREEN_ROWS + 1) {
+            for x in 0..TEXT_SCREEN_COLS {
+                let char = self.text_buffer[(y + starting_row) * TEXT_SCREEN_COLS + x];
+                self.draw_char(
+                    &char,
+                    x * CHAR_WIDTH,
+                    y * CHAR_HEIGHT + (self.text_offset % CHAR_HEIGHT),
+                );
             }
         }
     }
 
     fn draw_char(&mut self, char: &VgaChar, x: usize, y: usize) {
-        let raster = get_raster(char.char, char.style.weight, RasterHeight::Size16)
-            .unwrap_or(get_raster(' ', char.style.weight, RasterHeight::Size16).unwrap());
+        let raster = get_raster(char.char, CHAR_WEIGHT, CHAR_SIZE)
+            .unwrap_or(
+                get_raster(' ', CHAR_WEIGHT, CHAR_SIZE)
+                    .expect("Cannot get default raster for char while drawing to screen."),
+            )
+            .raster();
 
-        let pixel_x = x * self.char_width;
-        let pixel_y = y * self.char_height;
-        for (y, row) in raster.raster().iter().enumerate() {
-            for (x, lightness) in row.iter().enumerate() {
-                let mut fore_color = char.style.foreground.clone();
-                fore_color.set_lightness(*lightness);
-                let mut back_color = char.style.background.clone();
-                back_color.set_lightness(255 - lightness);
-                self.buffer_set(pixel_x + x, pixel_y + y, VgaPixel(fore_color + back_color));
+        for (i, row) in raster.iter().enumerate() {
+            for (j, lightness) in row.iter().enumerate() {
+                // TODO: Actually display the foreground and background colors set by VgaChar
+                self.buffer_set(
+                    x + j,
+                    y + i,
+                    VgaPixel(VgaColor::new_rgb(*lightness, *lightness, *lightness)),
+                )
             }
         }
     }
 
     fn draw_pixels(&mut self) {
+        // WTF is this???
         for (i, pixel) in self.pixel_buffer.clone().iter().enumerate() {
             self.buffer_set(
-                i % self.framebuffer.info().width,
-                i / self.framebuffer.info().width,
+                i % self.buffer_info().width,
+                i / self.buffer_info().width,
                 *pixel,
             )
         }
@@ -127,6 +153,10 @@ impl<'a> VgaScreen<'a> {
 
     fn buffer_set(&mut self, x: usize, y: usize, pixel: VgaPixel) {
         let pos = self.buffer_pos(x, y);
+        if (pos + 2) >= self.buffer().len() {
+            // Don't draw the pixel to the screen
+            return;
+        }
         let buffer = self.buffer_mut();
         buffer[pos + 2] = pixel.0.red_val();
         buffer[pos + 1] = pixel.0.green_val();

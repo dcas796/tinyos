@@ -1,5 +1,5 @@
 use core::cmp::{max, min};
-use core::ops::Add;
+use core::ops::Div;
 use micromath::F32Ext;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -7,7 +7,7 @@ pub struct VgaColor {
     red: u8,
     green: u8,
     blue: u8,
-    
+
     hue: u16,
     saturation: u8,
     lightness: u8,
@@ -16,12 +16,26 @@ pub struct VgaColor {
 impl VgaColor {
     pub fn new_rgb(red: u8, green: u8, blue: u8) -> Self {
         let (hue, saturation, lightness) = Self::rgb_to_hsl(red, green, blue);
-        Self { red, green, blue, hue, saturation, lightness }
+        Self {
+            red,
+            green,
+            blue,
+            hue,
+            saturation,
+            lightness,
+        }
     }
 
     pub fn new_hsl(hue: u16, saturation: u8, lightness: u8) -> Self {
         let (red, green, blue) = Self::hsl_to_rgb(hue, saturation, lightness);
-        Self { red, green, blue, hue, saturation, lightness }
+        Self {
+            red,
+            green,
+            blue,
+            hue,
+            saturation,
+            lightness,
+        }
     }
 
     // TODO: Add CMYK support
@@ -42,11 +56,10 @@ impl VgaColor {
         let green = green as f32;
         let blue = blue as f32;
 
-        let mut h = (
-            (red - green / 2.0 - blue / 2.0) /
-                (red * red + green * green + blue * blue - red * green - red * blue - green * blue)
-                    .sqrt()
-        ).acos();
+        let mut h = ((red - green / 2.0 - blue / 2.0)
+            / (red * red + green * green + blue * blue - red * green - red * blue - green * blue)
+                .sqrt())
+        .acos();
         if blue > green {
             h = 360.0 - h;
         }
@@ -68,16 +81,16 @@ impl VgaColor {
             180..240 => (m, 255.0 * x + m, 255.0 * d + m),
             240..300 => (255.0 * x + m, m, 255.0 * d + m),
             300..360 => (255.0 * d + m, m, 255.0 * x + m),
-            _ => (0.0, 0.0, 0.0)
+            _ => (0.0, 0.0, 0.0),
         };
 
         (floats.0 as u8, floats.1 as u8, floats.2 as u8)
     }
-    
+
     pub fn red_val(&self) -> u8 {
         self.red
     }
-    
+
     pub fn green_val(&self) -> u8 {
         self.green
     }
@@ -100,43 +113,57 @@ impl VgaColor {
 
     pub fn set_red(&mut self, red: u8) {
         self.red = red;
-        (self.hue, self.saturation, self.lightness) = Self::rgb_to_hsl(self.red, self.green, self.blue);
+        (self.hue, self.saturation, self.lightness) =
+            Self::rgb_to_hsl(self.red, self.green, self.blue);
     }
 
     pub fn set_green(&mut self, green: u8) {
         self.green = green;
-        (self.hue, self.saturation, self.lightness) = Self::rgb_to_hsl(self.red, self.green, self.blue);
+        (self.hue, self.saturation, self.lightness) =
+            Self::rgb_to_hsl(self.red, self.green, self.blue);
     }
 
     pub fn set_blue(&mut self, blue: u8) {
         self.blue = blue;
-        (self.hue, self.saturation, self.lightness) = Self::rgb_to_hsl(self.red, self.green, self.blue);
+        (self.hue, self.saturation, self.lightness) =
+            Self::rgb_to_hsl(self.red, self.green, self.blue);
     }
 
     pub fn set_hue(&mut self, hue: u16) {
         self.hue = hue;
-        (self.red, self.green, self.blue) = Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
+        (self.red, self.green, self.blue) =
+            Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
     }
 
     pub fn set_saturation(&mut self, saturation: u8) {
         self.saturation = saturation;
-        (self.red, self.green, self.blue) = Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
+        (self.red, self.green, self.blue) =
+            Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
     }
 
     pub fn set_lightness(&mut self, lightness: u8) {
         self.lightness = lightness;
-        (self.red, self.green, self.blue) = Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
+        (self.red, self.green, self.blue) =
+            Self::hsl_to_rgb(self.hue, self.saturation, self.lightness);
     }
-}
 
-impl Add for VgaColor {
-    type Output = VgaColor;
+    pub fn mixing(self, other: VgaColor, blend_mode: BlendMode) -> VgaColor {
+        match blend_mode {
+            BlendMode::Average => self.blend_average(other),
+        }
+    }
 
-    fn add(self, rhs: Self) -> Self::Output {
+    fn blend_average(self, other: VgaColor) -> VgaColor {
+        let r1 = self.red as u32;
+        let g1 = self.green as u32;
+        let b1 = self.blue as u32;
+        let r2 = other.red as u32;
+        let g2 = other.green as u32;
+        let b2 = other.blue as u32;
         VgaColor::new_rgb(
-            self.red.saturating_add(rhs.red),
-            self.green.saturating_add(rhs.green),
-            self.blue.saturating_add(rhs.blue)
+            u32::isqrt((r1.pow(2) + r2.pow(2)).div(2)) as u8,
+            u32::isqrt((g1.pow(2) + g2.pow(2)).div(2)) as u8,
+            u32::isqrt((b1.pow(2) + b2.pow(2)).div(2)) as u8,
         )
     }
 }
@@ -205,4 +232,9 @@ impl VgaColor {
     pub fn white() -> Self {
         Self::new_rgb(255, 255, 255)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlendMode {
+    Average,
 }

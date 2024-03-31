@@ -8,6 +8,10 @@ edition = "2021"
 [dependencies]
 bootloader_api = "0.11.4"
 x86_64 = "0.15.0"
-noto-sans-mono-bitmap = "0.2.0"
 micromath = "2.0.0"
 uart_16550 = "0.3.0"
+noto-sans-mono-bitmap = { version = "0.2.0", features = [
+    "regular",
+    "size_16",
+    "unicode-basic-latin",
+] }

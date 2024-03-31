@@ -11,6 +11,7 @@ It implements its own memory allocator; screen, keyboard and mouse drivers; and 
 when booted. It is still at a very early stage and has yet not been tested on real hardware.
 
 ## Architecture
+
 [TinyOS.pdf](images/TinyOS.pdf)
 
 ## Prerequisites
@@ -18,7 +19,7 @@ when booted. It is still at a very early stage and has yet not been tested on re
 Before compiling the project, you must download the nightly version of Cargo.
 It is recommended to use `rustup`, as it makes the whole process much easier.
 
-To install the nightly version of Cargo, run: 
+To install the nightly version of Cargo, run:
 ```sh
 rustup default nightly
 ```
@@ -65,11 +66,22 @@ If you want the compiled boot image, build the project, and the boot image will 
 
 ## Testing
 
-This project includes tests. To test the project, run:
+This project includes tests. To test the project, cd into the appropriate directory (`kernel` or `interp`), and run:
 - macOS: `RUST_BACKTRACE=1 cargo test --target x86_64-apple-darwin -- --nocapture`
 - Linux: `RUST_BACKTRACE=1 cargo test --target x86_64-unknown-linux-gnu -- --nocapture`
+
+## Debugging
+
+To debug the kernel, you need to use the **Visual Studio Code** editor.
+
+First, open the project in VSCode and run `DEBUG=1 cargo run`.
+Then, go to the `Run and Debug` tab and run the appropriate debug configuration (`Attach to QEMU debugger (Intel)` or `Attach to QEMU debugger (ARM)`).
+
+This will continue the QEMU execution and stop at the `kernel_main` function.
+Afterwards, you can add any breakpoints, step and continue the kernel.
+
+**Note**: Because of a bug, any breakpoints set before running the debug configuration will not stop at that location. All breakpoints must be set while QEMU is running. If you wish to have a permanent breakpoint, you have to modify the `.vscode/launch.json` file and add the breakpoint there.
 
 ---
 
 Made by [dcas796](https://dcas796.github.com/)
-

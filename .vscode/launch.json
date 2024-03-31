@@ -1,0 +1,96 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to QEMU debugger (Intel)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/kernel",
+      "stopOnEntry": true,
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "targetCreateCommands": [
+        "target create --no-dependents --arch x86_64 \"${workspaceFolder}/target/kernel\"",
+        "target modules load --file kernel --slide 0x8000000000"
+      ],
+      "processCreateCommands": [
+        // rust-lldb
+        "command script import \"${userHome}/.rustup/toolchains/nightly-x86_64-apple-darwin/lib/rustlib/etc/lldb_lookup.py\"",
+        "command source -s 0 '${userHome}/.rustup/toolchains/nightly-x86_64-apple-darwin/lib/rustlib/etc/lldb_commands'",
+        "type synthetic add -l lldb_lookup.synthetic_lookup -x \".*\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)String$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^&(mut )?str$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^&(mut )?\\[.+\\]$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::ffi::([a-z_]+::)+)OsString$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Vec<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)VecDeque<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)BTreeSet<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)BTreeMap<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::collections::([a-z_]+::)+)HashMap<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::collections::([a-z_]+::)+)HashSet<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Rc<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Arc<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)Cell<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)Ref<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)RefMut<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)RefCell<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^core::num::([a-z_]+::)*NonZero.+$\" --category Rust",
+        "type category enable Rust",
+        // custom commands
+        "command alias sd script lldb.debugger.HandleCommand('si'); lldb.debugger.HandleCommand('dis')",
+        // qemu
+        "gdb-remote localhost:1234",
+        // BREAKPOINTS
+        "b kernel_main",
+        "c"
+      ]
+    },
+    {
+      "name": "Attach to QEMU debugger (ARM)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/kernel",
+      "stopOnEntry": true,
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "targetCreateCommands": [
+        "target create --no-dependents --arch x86_64 \"${workspaceFolder}/target/kernel\"",
+        "target modules load --file kernel --slide 0x8000000000"
+      ],
+      "processCreateCommands": [
+        // rust-lldb
+        "command script import \"${userHome}/.rustup/toolchains/nightly-aarch64-apple-darwin/lib/rustlib/etc/lldb_lookup.py\"",
+        "command source -s 0 '${userHome}/.rustup/toolchains/nightly-aarch64-apple-darwin/lib/rustlib/etc/lldb_commands'",
+        "type synthetic add -l lldb_lookup.synthetic_lookup -x \".*\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)String$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^&(mut )?str$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^&(mut )?\\[.+\\]$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::ffi::([a-z_]+::)+)OsString$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Vec<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)VecDeque<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)BTreeSet<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)BTreeMap<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::collections::([a-z_]+::)+)HashMap<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(std::collections::([a-z_]+::)+)HashSet<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Rc<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(alloc::([a-z_]+::)+)Arc<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)Cell<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)Ref<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)RefMut<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^(core::([a-z_]+::)+)RefCell<.+>$\" --category Rust",
+        "type summary add -F lldb_lookup.summary_lookup  -e -x -h \"^core::num::([a-z_]+::)*NonZero.+$\" --category Rust",
+        "type category enable Rust",
+        // custom commands
+        "command alias sd script lldb.debugger.HandleCommand('si'); lldb.debugger.HandleCommand('dis')",
+        // qemu
+        "gdb-remote localhost:1234",
+        // BREAKPOINTS
+        "b kernel_main",
+        "c"
+      ]
+    }
+  ]
+}

@@ -4,19 +4,6 @@ pub trait NonZeroRem {
     fn non_zero_rem(self, rhs: Self) -> Self;
 }
 
-// impl NonZeroRem for NonZero<u8> {
-//     fn non_zero_rem(self, rhs: Self) -> Self {
-//         let left: u8 = self.into();
-//         let right: u8 = rhs.into();
-//         let result = left % right;
-//         let non_zero_result = match result {
-//             0 => right,
-//             n => n,
-//         };
-//         unsafe { NonZero::<u8>::new_unchecked(non_zero_result) }
-//     }
-// }
-
 macro_rules! impl_non_zero_rem {
     ($t:ty) => {
         impl NonZeroRem for NonZero<$t> {

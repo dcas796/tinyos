@@ -5,6 +5,7 @@
 #![feature(panic_info_message)]
 #![feature(strict_provenance)]
 #![feature(generic_nonzero)]
+#![feature(isqrt)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
 #![allow(dead_code, static_mut_ref)]
@@ -12,15 +13,16 @@
 extern crate alloc;
 
 use crate::alloc_sys::ALLOCATOR;
-use crate::logger::logger;
+use crate::logger::{log, logln};
 use crate::vga::{VgaMode, VgaScreen};
 use bootloader_api::config::Mapping;
 use bootloader_api::info::MemoryRegionKind;
 use bootloader_api::{BootInfo, BootloaderConfig};
 use core::fmt::Write;
 use core::ptr::NonNull;
+use noto_sans_mono_bitmap::FontWeight;
+use vga::char::{VgaChar, VgaStyle};
 use vga::color::VgaColor;
-use vga::pixel::VgaPixel;
 
 mod alloc_sys;
 mod logger;
@@ -38,7 +40,7 @@ static BOOTLOADER_CONFIG: BootloaderConfig = {
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    _ = logger().write_str(
+    logln!(
         "
 ------------------------------------------
 
@@ -49,19 +51,27 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 :)",
     );
 
-    _ = logger().write_str("Initializing allocator...");
+    logln!("Initializing allocator...");
     initialize_allocator(&boot_info);
 
-    _ = logger().write_str("Initializing screen...");
-    let framebuffer = match boot_info.framebuffer.as_mut() {
-        Some(f) => f,
-        None => hlt_loop(),
-    };
-    let mut screen = VgaScreen::new(framebuffer);
-    screen.mode = VgaMode::Pixels;
-    screen.clear_screen();
+    logln!("Initializing screen...");
+    let framebuffer = boot_info
+        .framebuffer
+        .as_mut()
+        .expect("Cannot find Framebuffer, it is None.");
+    let mut screen = VgaScreen::new(framebuffer).expect("Cannot initialize screen.");
 
-    screen.pixel_buffer.fill(VgaPixel(VgaColor::blue()));
+    logln!("Painting screen...");
+    screen.clear_buffers();
+    screen.mode = VgaMode::Text;
+
+    let message = "Hello World!";
+    let style = VgaStyle::new(VgaColor::black(), VgaColor::white(), FontWeight::Regular);
+
+    for (i, char) in message.chars().enumerate() {
+        screen.text_buffer[i] = VgaChar::new(char, style);
+    }
+
     screen.draw();
 
     hlt_loop();
@@ -92,8 +102,7 @@ fn hlt_loop() -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-    _ = write!(
-        logger(),
+    log!(
         "
 ------------------------------------------
 

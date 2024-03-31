@@ -4,8 +4,66 @@ use uart_16550::SerialPort;
 
 static mut LOGGER: Option<Logger> = None;
 
-// # Safety
-// no.
+/// Log the output to the virtual serial console.
+///
+/// Omits the '\n' character at the end of all messages.
+///
+/// Before using, `core::fmt::Write` **must be imported**.
+///
+/// # Example
+///
+/// ```
+/// use core::fmt::Write;
+/// use crate::logger::log;
+///
+/// fn main() {
+///     log!("The value is: ");
+///     let value = 3 * 14;
+///     log!("{value}!");
+/// }
+/// ```
+///
+macro_rules! log {
+    ($(,)?) => {
+        _ = write!(crate::logger::logger());
+    };
+    ($($arg:tt)*) => {
+        _ = write!(crate::logger::logger(), $($arg)*);
+    };
+}
+
+/// Log the output to the virtual serial console.
+///
+/// Adds a '\n' character at the end of all messages.
+///
+/// Before using, `core::fmt::Write` **must be imported**.
+///
+/// # Example
+///
+/// ```
+/// use core::fmt::Write;
+/// use crate::logger::log;
+///
+/// fn main() {
+///     logln!("Welcome to my OS!");
+///     let calculation = 3 * 42;
+///     logln!("The calculation is: {calculation}");
+/// }
+/// ```
+///
+macro_rules! logln {
+    ($(,)?) => {
+        _ = writeln!(crate::logger::logger());
+    };
+    ($($arg:tt)*) => {
+        _ = writeln!(crate::logger::logger(), $($arg)*);
+    };
+}
+
+pub(crate) use {log, logln};
+
+/// # Safety
+/// no.
 pub fn logger() -> LoggerRef {
     unsafe {
         if (&LOGGER).is_none() {
