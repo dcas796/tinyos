@@ -19,6 +19,7 @@ use core::ptr::NonNull;
 use noto_sans_mono_bitmap::FontWeight;
 use vga::char::{VgaChar, VgaStyle};
 use vga::color::VgaColor;
+use vga::{TEXT_SCREEN_COLS, TEXT_SCREEN_ROWS};
 
 mod alloc_sys;
 mod logger;
@@ -61,11 +62,17 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     screen.clear_buffers();
     screen.mode = VgaMode::Text;
 
-    let message = "Hello World!";
+    let message = concat!("TinyOS Kernel ", env!("CARGO_PKG_VERSION"));
+    let copyright = "© 2024 dcas796 (https://github.com/dcas796)";
     let style = VgaStyle::new(VgaColor::black(), VgaColor::white(), FontWeight::Regular);
 
     for (i, char) in message.chars().enumerate() {
-        screen.text_buffer[i] = VgaChar::new(char, style);
+        screen.text_buffer_mut()[i] = VgaChar::new(char, style);
+    }
+
+    for (i, char) in copyright.chars().enumerate() {
+        screen.text_buffer_mut()[TEXT_SCREEN_COLS * (TEXT_SCREEN_ROWS - 1) + i] =
+            VgaChar::new(char, style);
     }
 
     screen.draw();

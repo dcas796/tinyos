@@ -39,9 +39,9 @@ pub struct VgaScreen<'a> {
     pub mode: VgaMode,
     framebuffer: &'a mut FrameBuffer,
 
-    pub text_buffer: HeapArray<VgaChar>,
+    text_buffer: HeapArray<VgaChar>,
     text_offset: usize,
-    pub pixel_buffer: HeapArray<VgaPixel>,
+    pixel_buffer: HeapArray<VgaPixel>,
 }
 
 impl<'a> VgaScreen<'a> {
@@ -79,6 +79,22 @@ impl<'a> VgaScreen<'a> {
             VgaMode::Text => self.draw_text(),
             VgaMode::Pixels => self.draw_pixels(),
         }
+    }
+
+    pub fn text_buffer(&self) -> &HeapArray<VgaChar> {
+        &self.text_buffer
+    }
+
+    pub fn text_buffer_mut(&mut self) -> &mut HeapArray<VgaChar> {
+        &mut self.text_buffer
+    }
+
+    pub fn pixel_buffer(&self) -> &HeapArray<VgaPixel> {
+        &self.pixel_buffer
+    }
+
+    pub fn pixel_buffer_mut(&mut self) -> &mut HeapArray<VgaPixel> {
+        &mut self.pixel_buffer
     }
 
     fn draw_text(&mut self) {
