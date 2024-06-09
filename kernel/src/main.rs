@@ -1,14 +1,11 @@
 #![feature(let_chains)]
 #![feature(allocator_api)]
-#![feature(exclusive_range_pattern)]
-#![feature(non_null_convenience)]
 #![feature(panic_info_message)]
 #![feature(strict_provenance)]
-#![feature(generic_nonzero)]
 #![feature(isqrt)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
-#![allow(dead_code, static_mut_ref)]
+#![allow(dead_code, static_mut_refs)]
 
 extern crate alloc;
 
@@ -18,7 +15,6 @@ use crate::vga::{VgaMode, VgaScreen};
 use bootloader_api::config::Mapping;
 use bootloader_api::info::MemoryRegionKind;
 use bootloader_api::{BootInfo, BootloaderConfig};
-use core::fmt::Write;
 use core::ptr::NonNull;
 use noto_sans_mono_bitmap::FontWeight;
 use vga::char::{VgaChar, VgaStyle};

@@ -8,8 +8,6 @@ static mut LOGGER: Option<Logger> = None;
 ///
 /// Omits the '\n' character at the end of all messages.
 ///
-/// Before using, `core::fmt::Write` **must be imported**.
-///
 /// # Example
 ///
 /// ```
@@ -25,18 +23,22 @@ static mut LOGGER: Option<Logger> = None;
 ///
 macro_rules! log {
     ($(,)?) => {
-        _ = write!(crate::logger::logger());
+        {
+            use core::fmt::Write;
+            _ = write!(crate::logger::logger());
+        }
     };
     ($($arg:tt)*) => {
-        _ = write!(crate::logger::logger(), $($arg)*);
+        {
+            use core::fmt::Write;
+            _ = write!(crate::logger::logger(), $($arg)*);
+        }
     };
 }
 
 /// Log the output to the virtual serial console.
 ///
 /// Adds a '\n' character at the end of all messages.
-///
-/// Before using, `core::fmt::Write` **must be imported**.
 ///
 /// # Example
 ///
@@ -53,10 +55,16 @@ macro_rules! log {
 ///
 macro_rules! logln {
     ($(,)?) => {
-        _ = writeln!(crate::logger::logger());
+        {
+            use core::fmt::Write;
+            _ = writeln!(crate::logger::logger());
+        }
     };
     ($($arg:tt)*) => {
-        _ = writeln!(crate::logger::logger(), $($arg)*);
+        {
+            use core::fmt::Write;
+            _ = writeln!(crate::logger::logger(), $($arg)*);
+        }
     };
 }
 
