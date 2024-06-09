@@ -35,6 +35,14 @@ impl<T> HeapArray<T> {
         Self { ptr, len }
     }
 
+    pub fn ptr(&self) -> *const T {
+        self.ptr.as_ptr()
+    }
+
+    pub fn ptr_mut(&mut self) -> *mut T {
+        self.ptr.as_ptr()
+    }
+
     pub fn get(&self, i: usize) -> Option<&T> {
         if i < self.len {
             unsafe { Some(&*(self.ptr.as_ptr().add(i))) }

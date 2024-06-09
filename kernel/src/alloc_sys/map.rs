@@ -1,4 +1,4 @@
-use crate::alloc_sys::block::MemoryBlock;
+use crate::alloc_sys::block::{MemoryBlock, MEMORY_BLOCK_ALIGN};
 use crate::utils::heap_array::HeapArray;
 use crate::utils::heap_vec::HeapVec;
 use crate::utils::non_zero_rem::NonZeroRem;
@@ -15,6 +15,7 @@ pub struct MemoryMap {
 }
 
 impl MemoryMap {
+    // TODO: Clean up this mess.
     pub fn new(ptr: NonNull<u8>, len: usize) -> Self {
         let ptr_addr = ptr.addr();
         let aligned_diff = MAX_ALIGN.get() - (ptr_addr.non_zero_rem(MAX_ALIGN)).get();
@@ -28,16 +29,28 @@ impl MemoryMap {
         let len_aligned = len - aligned_diff;
         let aligned_ptr = NonNull::dangling().with_addr(aligned_ptr_addr);
         let blocks_bytes_len = (BLOCKS_BUFFER_FRACTION * (len_aligned as f64)) as usize;
-        let blocks_ptr = unsafe {
-            aligned_ptr
-                .add(len_aligned - blocks_bytes_len)
-                .cast::<MemoryBlock>()
+        let (blocks_ptr, blocks_aligned_bytes_len) = {
+            let ptr_unaligned = unsafe { aligned_ptr.add(len_aligned - blocks_bytes_len) };
+            let ptr_unaligned_addr = ptr_unaligned.addr();
+            let ptr_alignment_diff = MEMORY_BLOCK_ALIGN.get()
+                - (ptr_unaligned_addr.non_zero_rem(MEMORY_BLOCK_ALIGN)).get();
+            let ptr_aligned_addr = ptr_unaligned_addr
+                .checked_add(ptr_alignment_diff)
+                .expect("Overflowed usize when calculating aligned MemoryMap blocks pointer");
+            assert!(
+                aligned_ptr_addr.get() < (ptr_addr.get() + len),
+                "Insufficient size for ALLOCATOR blocks"
+            );
+            (
+                NonNull::dangling().with_addr(ptr_aligned_addr),
+                blocks_bytes_len - ptr_alignment_diff,
+            )
         };
         Self {
             buffer: HeapArray::new_with_ptr(aligned_ptr, len_aligned - blocks_bytes_len),
             blocks: HeapVec::new_with_ptr(
                 blocks_ptr,
-                blocks_bytes_len / mem::size_of::<MemoryBlock>(),
+                blocks_aligned_bytes_len / mem::size_of::<MemoryBlock>(),
             ),
         }
     }

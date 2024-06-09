@@ -1,4 +1,7 @@
-use core::cmp::Ordering;
+use core::{cmp::Ordering, mem::align_of, num::NonZero};
+
+pub const MEMORY_BLOCK_ALIGN: NonZero<usize> =
+    unsafe { NonZero::new_unchecked(align_of::<MemoryBlock>()) };
 
 #[derive(Debug, Copy, Clone)]
 pub struct MemoryBlock {
@@ -12,7 +15,7 @@ impl MemoryBlock {
         Self {
             is_active: true,
             start,
-            size
+            size,
         }
     }
 

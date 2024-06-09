@@ -73,12 +73,12 @@ impl<T> Deref for HeapVec<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.array.as_ptr(), self.len) }
+        unsafe { slice::from_raw_parts(self.array.ptr(), self.len) }
     }
 }
 
 impl<T> DerefMut for HeapVec<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { slice::from_raw_parts_mut(self.array.as_mut_ptr(), self.len) }
+        unsafe { slice::from_raw_parts_mut(self.array.ptr_mut(), self.len) }
     }
 }
