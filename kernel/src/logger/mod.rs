@@ -23,13 +23,13 @@ static mut LOGGER: Option<Logger> = None;
 ///
 macro_rules! log {
     ($(,)?) => {
-        {
+        if option_env!("LOGGER_DISABLED").unwrap_or("0") != "1" {
             use core::fmt::Write;
             _ = write!(crate::logger::logger());
         }
     };
     ($($arg:tt)*) => {
-        {
+        if option_env!("LOGGER_DISABLED").unwrap_or("0") != "1" {
             use core::fmt::Write;
             _ = write!(crate::logger::logger(), $($arg)*);
         }
@@ -55,13 +55,13 @@ macro_rules! log {
 ///
 macro_rules! logln {
     ($(,)?) => {
-        {
+        if option_env!("LOGGER_DISABLED").unwrap_or("0") != "1" {
             use core::fmt::Write;
             _ = writeln!(crate::logger::logger());
         }
     };
     ($($arg:tt)*) => {
-        {
+        if option_env!("LOGGER_DISABLED").unwrap_or("0") != "1" {
             use core::fmt::Write;
             _ = writeln!(crate::logger::logger(), $($arg)*);
         }
