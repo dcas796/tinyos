@@ -16,10 +16,8 @@ use bootloader_api::config::Mapping;
 use bootloader_api::info::MemoryRegionKind;
 use bootloader_api::{BootInfo, BootloaderConfig};
 use core::ptr::NonNull;
-use noto_sans_mono_bitmap::FontWeight;
-use vga::char::{VgaChar, VgaStyle};
-use vga::color::VgaColor;
-use vga::{TEXT_SCREEN_COLS, TEXT_SCREEN_ROWS};
+use vga::char::VgaStyle;
+use vga::TEXT_SCREEN_ROWS;
 
 mod alloc_sys;
 mod logger;
@@ -59,23 +57,22 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let mut screen = VgaScreen::new(framebuffer).expect("Cannot initialize screen.");
 
     logln!("Painting screen...");
-    screen.clear_buffers();
+    screen.clear_screen();
     screen.mode = VgaMode::Text;
 
-    let message = concat!("TinyOS Kernel ", env!("CARGO_PKG_VERSION"));
-    let copyright = "© 2024 dcas796 (https://github.com/dcas796)";
-    let style = VgaStyle::new(VgaColor::black(), VgaColor::white(), FontWeight::Regular);
-
-    for (i, char) in message.chars().enumerate() {
-        screen.text_buffer_mut()[i] = VgaChar::new(char, style);
-    }
-
-    for (i, char) in copyright.chars().enumerate() {
-        screen.text_buffer_mut()[TEXT_SCREEN_COLS * (TEXT_SCREEN_ROWS - 1) + i] =
-            VgaChar::new(char, style);
-    }
-
-    screen.draw();
+    screen.print_text(
+        0,
+        0,
+        concat!("TinyOS Kernel ", env!("CARGO_PKG_VERSION")),
+        VgaStyle::default(),
+    );
+    screen.print_text(
+        0,
+        TEXT_SCREEN_ROWS - 1,
+        "© 2024 dcas796 (https://github.com/dcas796)",
+        VgaStyle::default(),
+    );
+    screen.print_text(0, 1, "Loading OS...", VgaStyle::default());
 
     hlt_loop();
 }
