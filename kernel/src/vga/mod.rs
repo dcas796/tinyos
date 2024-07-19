@@ -6,7 +6,10 @@ use crate::utils::heap_array::HeapArray;
 use crate::vga::char::VgaChar;
 use crate::vga::color::VgaColor;
 use crate::vga::pixel::VgaPixel;
+use alloc::borrow::Cow;
+use alloc::vec::Vec;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
+use char::VgaStyle;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +43,7 @@ pub struct VgaScreen<'a> {
     framebuffer: &'a mut FrameBuffer,
 
     text_buffer: HeapArray<VgaChar>,
-    text_offset: usize,
+    pub text_offset: usize,
     pixel_buffer: HeapArray<VgaPixel>,
 }
 
@@ -48,8 +51,17 @@ impl<'a> VgaScreen<'a> {
     pub fn new(framebuffer: &'a mut FrameBuffer) -> Result<Self, VgaError> {
         let info = framebuffer.info();
         // TODO: Support more pixel formats
-        assert_eq!(info.pixel_format, PixelFormat::Bgr);
-        assert_eq!(info.bytes_per_pixel, 3);
+        assert_eq!(
+            info.pixel_format,
+            PixelFormat::Bgr,
+            "{:?} format not supported.",
+            info.pixel_format
+        );
+        assert_eq!(
+            info.bytes_per_pixel, 3,
+            "{} bytes per pixel not supported.",
+            info.bytes_per_pixel
+        );
         let pixel_buffer_length = info.byte_len;
         let text_buffer = HeapArray::new(TEXT_BUFFER_SIZE)?;
         let pixel_buffer = HeapArray::new(pixel_buffer_length / 3)?;
@@ -62,23 +74,6 @@ impl<'a> VgaScreen<'a> {
         };
         screen.clear_buffers();
         Ok(screen)
-    }
-
-    pub fn clear_buffers(&mut self) {
-        self.text_buffer.fill(VgaChar::default());
-        self.pixel_buffer.fill(VgaPixel(VgaColor::black()));
-    }
-
-    pub fn clear_screen(&mut self) {
-        self.clear_buffers();
-        self.buffer_mut().fill(0);
-    }
-
-    pub fn draw(&mut self) {
-        match self.mode {
-            VgaMode::Text => self.draw_text(),
-            VgaMode::Pixels => self.draw_pixels(),
-        }
     }
 
     pub fn text_buffer(&self) -> &HeapArray<VgaChar> {
@@ -97,21 +92,64 @@ impl<'a> VgaScreen<'a> {
         &mut self.pixel_buffer
     }
 
-    fn draw_text(&mut self) {
-        let starting_row = self.text_offset / CHAR_HEIGHT;
-        for y in 0..(TEXT_SCREEN_ROWS + 1) {
-            for x in 0..TEXT_SCREEN_COLS {
-                let char = self.text_buffer[(y + starting_row) * TEXT_SCREEN_COLS + x];
-                self.draw_char(
-                    &char,
-                    x * CHAR_WIDTH,
-                    y * CHAR_HEIGHT + (self.text_offset % CHAR_HEIGHT),
-                );
-            }
+    pub fn clear_buffers(&mut self) {
+        self.text_buffer.fill(VgaChar::default());
+        self.pixel_buffer.fill(VgaPixel(VgaColor::black()));
+    }
+
+    pub fn clear_screen(&mut self) {
+        self.clear_buffers();
+        self.buffer_mut().fill(0);
+    }
+
+    pub fn draw(&mut self) {
+        match self.mode {
+            VgaMode::Text => self.draw_text_buffer(),
+            VgaMode::Pixels => self.draw_pixels(),
         }
     }
 
-    fn draw_char(&mut self, char: &VgaChar, x: usize, y: usize) {
+    pub fn print_text(&mut self, col: usize, row: usize, text: &str, style: VgaStyle) {
+        // Update the text buffer with the new string
+        let mut text = Cow::from(text);
+        let text_buffer_index = row * TEXT_SCREEN_COLS + col;
+
+        if text_buffer_index + text.len() > self.text_buffer.len() {
+            text.to_mut()
+                .truncate(self.text_buffer.len() - text_buffer_index);
+        }
+
+        for (i, char) in text.chars().enumerate() {
+            self.text_buffer_mut()[text_buffer_index + i] = VgaChar::new(char, style);
+        }
+
+        // Draw the text onto the screen
+        let chars: Vec<VgaChar> = text
+            .as_ref()
+            .chars()
+            .map(|char| VgaChar::new(char, style))
+            .collect();
+        self.draw_chars(col, row, &chars);
+    }
+
+    fn draw_text_buffer(&mut self) {
+        let chars = self.text_buffer.clone();
+        self.draw_chars(0, 0, &chars);
+    }
+
+    fn draw_chars(&mut self, col: usize, row: usize, chars: &[VgaChar]) {
+        let mut curr_col = col;
+        for char in chars {
+            self.draw_char(
+                char,
+                (curr_col * CHAR_WIDTH) as isize,
+                (row * CHAR_HEIGHT) as isize - self.text_offset as isize,
+            );
+            curr_col += 1;
+        }
+    }
+
+    fn draw_char(&mut self, char: &VgaChar, x: isize, y: isize) {
         let raster = get_raster(char.char, CHAR_WEIGHT, CHAR_SIZE)
             .unwrap_or(
                 get_raster(' ', CHAR_WEIGHT, CHAR_SIZE)
@@ -121,10 +159,14 @@ impl<'a> VgaScreen<'a> {
 
         for (i, row) in raster.iter().enumerate() {
             for (j, lightness) in row.iter().enumerate() {
+                if (x + j as isize) < 0 || (y + i as isize) < 0 {
+                    continue;
+                }
+
                 // TODO: Actually display the foreground and background colors set by VgaChar
                 self.buffer_set(
-                    x + j,
-                    y + i,
+                    (x + j as isize) as usize,
+                    (y + i as isize) as usize,
                     VgaPixel(VgaColor::new_rgb(*lightness, *lightness, *lightness)),
                 )
             }
@@ -168,11 +210,10 @@ impl<'a> VgaScreen<'a> {
     }
 
     fn buffer_set(&mut self, x: usize, y: usize, pixel: VgaPixel) {
-        let pos = self.buffer_pos(x, y);
-        if (pos + 2) >= self.buffer().len() {
-            // Don't draw the pixel to the screen
+        if x >= self.buffer_info().width || y >= self.buffer_info().height {
             return;
         }
+        let pos = self.buffer_pos(x, y);
         let buffer = self.buffer_mut();
         buffer[pos + 2] = pixel.0.red_val();
         buffer[pos + 1] = pixel.0.green_val();
