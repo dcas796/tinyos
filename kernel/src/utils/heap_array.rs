@@ -1,5 +1,6 @@
 use alloc::alloc::{alloc, dealloc};
 use core::alloc::Layout;
+use core::fmt::Debug;
 use core::mem::needs_drop;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
@@ -103,5 +104,16 @@ impl<T: Clone> Clone for HeapArray<T> {
             new_array[i] = item.clone();
         }
         new_array
+    }
+}
+
+impl<T: Debug> Debug for HeapArray<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "[")?;
+        for elem in self.iter() {
+            writeln!(f, "\t{:?}", elem)?;
+        }
+        writeln!(f, "]")?;
+        Ok(())
     }
 }
